@@ -6,45 +6,51 @@ import copy
 import time
 from sys import exit
 import contextvars
-from queue import  Queue
+from queue import Queue
 
 import soundfile as sf
 import torch
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 
-# Improvements: 
+
+import win32com.client as comclt
+# Improvements:
 # - gpu / cpu flag
 # - convert non 16 khz sample rates
 # - inference time log
 
+
 class Wave2Vec2Inference():
-    def __init__(self,model_name):
-        self.processor = Wav2Vec2Processor.from_pretrained(model_name) 
+    def __init__(self, model_name):
+        self.processor = Wav2Vec2Processor.from_pretrained(model_name)
         self.model = Wav2Vec2ForCTC.from_pretrained(model_name)
 
-    def buffer_to_text(self,audio_buffer):
-        if(len(audio_buffer)==0):
+    def buffer_to_text(self, audio_buffer):
+        if(len(audio_buffer) == 0):
             return ""
 
-        inputs = self.processor(torch.tensor(audio_buffer), sampling_rate=16_000, return_tensors="pt", padding=True)
+        inputs = self.processor(torch.tensor(
+            audio_buffer), sampling_rate=16_000, return_tensors="pt", padding=True)
 
         with torch.no_grad():
             logits = self.model(inputs.input_values).logits
 
-        predicted_ids = torch.argmax(logits, dim=-1)        
+        predicted_ids = torch.argmax(logits, dim=-1)
         transcription = self.processor.batch_decode(predicted_ids)[0]
         return transcription.lower()
 
-    def file_to_text(self,filename):
+    def file_to_text(self, filename):
         audio_input, samplerate = sf.read(filename)
         assert samplerate == 16000
         return self.buffer_to_text(audio_input)
 
+
 class LiveWav2Vec2():
-    exit_event = threading.Event()    
+    exit_event = threading.Event()
+
     def __init__(self, model_name, device_name="default"):
         self.model_name = model_name
-        self.device_name = device_name              
+        self.device_name = device_name
 
     def stop(self):
         """stop the asr process"""
@@ -88,10 +94,10 @@ class LiveWav2Vec2():
                             input=True,
                             frames_per_buffer=CHUNK)
 
-        frames = b''                
-        while True:         
+        frames = b''
+        while True:
             if LiveWav2Vec2.exit_event.is_set():
-                break            
+                break
             frame = stream.read(CHUNK)
             is_speech = vad.is_speech(frame, RATE)
             if is_speech:
@@ -108,8 +114,8 @@ class LiveWav2Vec2():
         wave2vec_asr = Wave2Vec2Inference(model_name)
 
         print("\nlistening to your voice\n")
-        while True:                        
-            audio_frames = in_queue.get()       
+        while True:
+            audio_frames = in_queue.get()
             if audio_frames == "close":
                 break
 
@@ -120,7 +126,7 @@ class LiveWav2Vec2():
             inference_time = time.perf_counter()-start
             sample_length = len(float64_buffer) / 16000  # length in sec
             if text != "":
-                output_queue.put([text,sample_length,inference_time])                            
+                output_queue.put([text, sample_length, inference_time])
 
     def get_input_device_id(device_name, microphones):
         for device in microphones:
@@ -141,20 +147,31 @@ class LiveWav2Vec2():
 
     def get_last_text(self):
         """returns the text, sample length and inference time in seconds."""
-        return self.asr_output_queue.get()           
+        return self.asr_output_queue.get()
+
 
 if __name__ == "__main__":
     print("Live ASR")
 
     asr = LiveWav2Vec2("jonatasgrosman/wav2vec2-large-xlsr-53-spanish")
-    
+
     asr.start()
 
-    try:        
+    try:
         while True:
-            text,sample_length,inference_time = asr.get_last_text()                        
-            print(f"{sample_length:.3f}s\t{inference_time:.3f}s\t{text}")
-            
+            text, sample_length, inference_time = asr.get_last_text()
+            wsh = comclt.Dispatch("WScript.Shell")
+            wsh.AppActivate("Notepad")  
+            """Insertar las reglas correspondientes a la palabra dicha"""
+            if text == 'arriba':
+                wsh.SendKeys("Saludos")
+                print(f"{sample_length:.3f}s\t{inference_time:.3f}s\t{text}")
+
+            if text == 'abajo':
+                wsh.SendKeys("Saludos")
+                print(f"{sample_length:.3f}s\t{inference_time:.3f}s\t{text}")
+
+
     except KeyboardInterrupt:
-        asr.stop()  
+        asr.stop()
         exit()
