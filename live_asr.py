@@ -13,7 +13,7 @@ import torch
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 
 
-import win32com.client as comclt
+import keyboard
 # Improvements:
 # - gpu / cpu flag
 # - convert non 16 khz sample rates
@@ -113,7 +113,7 @@ class LiveWav2Vec2():
     def asr_process(model_name, in_queue, output_queue):
         wave2vec_asr = Wave2Vec2Inference(model_name)
 
-        print("\nlistening to your voice\n")
+        print("\nEscuchando...\n")
         while True:
             audio_frames = in_queue.get()
             if audio_frames == "close":
@@ -151,7 +151,7 @@ class LiveWav2Vec2():
 
 
 if __name__ == "__main__":
-    print("Live ASR")
+    print("Iniciando programa....")
 
     asr = LiveWav2Vec2("jonatasgrosman/wav2vec2-large-xlsr-53-spanish")
 
@@ -160,17 +160,21 @@ if __name__ == "__main__":
     try:
         while True:
             text, sample_length, inference_time = asr.get_last_text()
-            wsh = comclt.Dispatch("WScript.Shell")
-            wsh.AppActivate("Notepad")  
-            """Insertar las reglas correspondientes a la palabra dicha"""
             if text == 'arriba':
-                wsh.SendKeys("Saludos")
+                keyboard.press_and_release('up')
                 print(f"{sample_length:.3f}s\t{inference_time:.3f}s\t{text}")
 
             if text == 'abajo':
-                wsh.SendKeys("Saludos")
+                keyboard.press_and_release('down')
                 print(f"{sample_length:.3f}s\t{inference_time:.3f}s\t{text}")
 
+            if text == 'izquierda':
+                keyboard.press_and_release('left')
+                print(f"{sample_length:.3f}s\t{inference_time:.3f}s\t{text}")
+
+            if text == 'derecha':
+                keyboard.press_and_release('right')
+                print(f"{sample_length:.3f}s\t{inference_time:.3f}s\t{text}")
 
     except KeyboardInterrupt:
         asr.stop()
